@@ -3,7 +3,7 @@ import type { EngineInterface, Register } from 'claude-code'
 import type { Category, Entry, Stats } from '../types'
 import { baseName, cannedQuip, classify, cut, describe, LIVE_SYSTEM, livePrompt, parseLive, tintOf, TOPICS } from './guide'
 import type { Action } from './guide'
-import { MIN_ROWS, screen } from './screen'
+import { LOAD_S, MIN_ROWS, screen, tapeError } from './screen'
 import type { Doodle, Look, Scene } from './screen'
 
 const PANE = 'dont-panic'
@@ -30,6 +30,8 @@ const THINK_REFRESH_MS = 20_000
 const IDLE_MS = 120_000
 /** How long a failure, an answer or an interruption plays before the scene goes back. */
 const FX_MS = 4_500
+/** How long "R Tape loading error" stays up. */
+const TAPE_ERROR_MS = 2_200
 /** The tallest the screen grows, in terminal rows. */
 const MAX_ROWS = 80
 
@@ -73,6 +75,8 @@ const liveNote = { plugin: 'dont-panic', key: 'liveNote' } as const
 let look: Look = { scene: 'panic', seed: 1, label: '', tint: AMBER, amount: 0 }
 let lookAt = Date.now()
 let moment: { look: Look; at: number } | null = null
+/** A tape load another scene cut short: the frozen picture and its error report, for a moment. */
+let tapeFail: { look: Look; cutAt: number; at: number } | null = null
 let site: { columns: number; rows: number } | null = null
 let isBlitting = false
 let isFrozen = false
@@ -341,9 +345,19 @@ function show(action: Action, scene?: Scene) {
     return
   }
   moment = null
+  const now = Date.now()
+  const loadedFor = (now - lookAt) / 1000
+  const isMidLoad = look.isLoading === true && loadedFor < LOAD_S
+  if (isMidLoad && next.scene === look.scene) {
+    // The same scene while its tape is still loading: let it finish, with the new facts.
+    look = { ...look, label: next.label, tint: next.tint, flavour: next.flavour, amount: next.amount }
+    return
+  }
+  // Another scene cuts a load short, as stopping the tape did: the Spectrum says so.
+  if (isMidLoad) tapeFail = { look, cutAt: loadedFor, at: now }
   // A new look every entry: the same scene restarts with different variations.
   look = next
-  lookAt = Date.now()
+  lookAt = now
 }
 
 async function loadVariants($: EngineInterface): Promise<Partial<Record<Scene, Doodle>>> {
@@ -457,6 +471,12 @@ async function tick($: EngineInterface) {
 
 function frameNow(columns: number, rows: number): string {
   const now = Date.now()
+  if (tapeFail && now - tapeFail.at < TAPE_ERROR_MS) {
+    // The next scene waits its turn behind the report.
+    lookAt = Math.max(lookAt, now)
+    return tapeError(tapeFail.look, tapeFail.cutAt, columns, rows)
+  }
+  tapeFail = null
   if (moment && now - moment.at > FX_MS) moment = null
   const showing = moment ?? { look, at: lookAt }
   const t = isFrozen ? 1.5 : (now - showing.at) / 1000

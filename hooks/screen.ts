@@ -168,7 +168,7 @@ const ZX = { blue: 0x0000d7, red: 0xd70000, cyan: 0x00d7d7, yellow: 0xd7d700, wh
  * interleaved row order (the first line of every character row, then the second, ...), and its
  * colours last, a character row at a time.
  */
-function drawLoading(p: Pixels, t: number, k: number, paint: (inner: Pixels) => void) {
+function drawLoading(p: Pixels, t: number, k: number, paint: (inner: Pixels) => void, hasFailed = false) {
   // The border, cell-aligned so its stripes stay crisp in braille.
   const bx = 2 * Math.max(2, Math.round((p.w * 0.05) / 2))
   const by = 4 * Math.max(1, Math.round((p.h * 0.1) / 4))
@@ -186,7 +186,7 @@ function drawLoading(p: Pixels, t: number, k: number, paint: (inner: Pixels) => 
   for (let y = 0; y < p.h; y++) {
     const cellRow = Math.floor(y / band)
     let colour: number
-    if (isPlain) colour = 0
+    if (isPlain || hasFailed) colour = 0
     else if (isPilot) colour = Math.floor((y + t * 60) / (band * 2)) % 2 === 0 ? ZX.red : ZX.cyan
     else colour = hash(cellRow * 13.7 + Math.floor(t * 25)) > 0.5 ? ZX.blue : ZX.yellow
     if (!colour) continue
@@ -218,6 +218,46 @@ function drawLoading(p: Pixels, t: number, k: number, paint: (inner: Pixels) => 
   }
   // The header's one line, until the picture loads over it.
   if (t >= HEADER && bits < 0.12) tiny(p, 'PROGRAM: GUIDE', bx + 2, by + 2, Math.max(1, Math.min(k, 2)), () => ZX.white)
+  // A load cut short: the report, black on white at the foot of the screen, as the ROM printed it.
+  if (hasFailed) {
+    const size = Math.max(1, Math.min(k, 2))
+    let words = 'R TAPE LOADING ERROR, 0:1'
+    if (textWidth(words, size) > p.w - 4) words = 'R TAPE LOADING ERROR'
+    if (textWidth(words, size) > p.w - 4) words = 'R TAPE ERROR'
+    const height = 4 * Math.ceil((5 * size + 4) / 4)
+    const top = Math.max(0, 4 * Math.floor((p.h - height) / 4))
+    for (let y = top; y < Math.min(p.h, top + height); y++) for (let x = 0; x < p.w; x++) put(p, x, y, ZX.white)
+    // Letters cut out of the bar: a braille cell has one colour, so holes are what shows.
+    const ty = top + Math.floor((height - 5 * size) / 2)
+    eachTinyDot(words, size, (dx, dy) => {
+      const x = 2 + dx
+      const y = ty + dy
+      if (x >= 0 && x < p.w && y >= 0 && y < p.h) p.px[y * p.w + x] = 0
+    })
+  }
+}
+
+/** A tape load cut off `cutAt` seconds in: the picture as far as it got, and the ROM's report. */
+export function tapeError(look: Look, cutAt: number, columns: number, rows: number): string {
+  const w = columns * 2
+  const h = rows * 4
+  const p: Pixels = { w, h, px: new Uint32Array(w * h) }
+  const k = Math.max(1, Math.min(Math.floor(h / 20), Math.floor(w / 40) + 1, 4))
+  const doodle = look.doodle
+  const own = doodle?.scenePalette && doodle.scenePalette.length >= 2 ? doodle.scenePalette : null
+  const palette = (u: number) => own ?? pick(PALETTES, u)
+  const r = (n: number) => hash(look.seed * 31.7 + n * 7.3)
+  drawLoading(
+    p,
+    Math.min(cutAt, LOAD_S - 0.01),
+    k,
+    (inner: Pixels) => {
+      DRAW[look.scene]({ p: inner, t: 1.2, now: 3, look, S: Math.max(1, Math.floor(inner.h / 24)), k, r, palette })
+      if (doodle) drawDoodle(inner, doodle, 1.2, 3, Math.max(1, Math.floor(inner.h / 24)), k, look.seed)
+    },
+    true,
+  )
+  return encode(p, columns, rows)
 }
 
 /** The model's sprite, moving its own way over the scene, with its caption beside the first. */
