@@ -1,0 +1,14 @@
+{
+  "name": "dont-panic",
+  "version": "0.1.0",
+  "description": "A Guide-style pane for Claude Code: animated scenes and live, irreverent Guide entries on whatever the agent is doing, with doodles that evolve as you work.",
+  "author": {
+    "name": "Vortitron",
+    "url": "https://vome.io"
+  },
+  "homepage": "https://github.com/Vortitron/dont-panic",
+  "repository": "https://github.com/Vortitron/dont-panic",
+  "license": "MIT",
+  "keywords": ["fun", "pane", "animation", "hitchhikers-guide"],
+  "types": "./types/index.d.ts"
+}
