@@ -68,6 +68,11 @@ across sessions.
   | An interruption | Dolphins leaping away |
   | Thinking, idle | DON'T PANIC, in large friendly letters |
 
+- **A nod to the ZX Spectrum** now and then: a scene loads from tape, with the
+  border striped red and cyan for the pilot tone, then flickering blue and
+  yellow for data. "Program: GUIDE" appears, then the picture arrives in white
+  a third at a time, in the Spectrum's interleaved row order, with its colours
+  last. The first scene of every session always loads this way.
 - **Entries**, each with a heading in the Guide's filing style and a short
   entry naming the actual file, command or pattern. A stock entry appears at
   once; the live one replaces it a second or two later. A long think with no

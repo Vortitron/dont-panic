@@ -47,7 +47,12 @@ export type Look = {
   amount: number
   /** The model's own addition to this scene, evolved from its last one: drawn over the scene. */
   doodle?: Doodle
+  /** The scene first loads from tape, as a ZX Spectrum's screen did: see `drawLoading`. */
+  isLoading?: boolean
 }
+
+/** How long a tape load takes before the scene runs, in seconds. */
+export const LOAD_S = 7
 
 /** Ways a doodle moves. */
 export const MOTIONS = ['drift', 'bob', 'orbit', 'bounce', 'swim', 'march', 'pulse', 'hover'] as const
@@ -138,9 +143,81 @@ export function screen(look: Look, t: number, now: number, columns: number, rows
   const speed = doodle?.speed ?? 1
   const own = doodle?.scenePalette && doodle.scenePalette.length >= 2 ? doodle.scenePalette : null
   const palette = (u: number) => own ?? pick(PALETTES, u)
-  DRAW[look.scene]({ p, t: t * speed, now: now * speed, look, S, k, r: n => hash(look.seed * 31.7 + n * 7.3), palette })
-  if (doodle) drawDoodle(p, doodle, t, now, S, k, look.seed)
+  const r = (n: number) => hash(look.seed * 31.7 + n * 7.3)
+  if (look.isLoading && t < LOAD_S) {
+    drawLoading(p, t, k, (inner: Pixels) => {
+      // The picture being loaded is a still: the scene a moment in, its doodle in place.
+      DRAW[look.scene]({ p: inner, t: 1.2, now: 3, look, S: Math.max(1, Math.floor(inner.h / 24)), k, r, palette })
+      if (doodle) drawDoodle(inner, doodle, 1.2, 3, Math.max(1, Math.floor(inner.h / 24)), k, look.seed)
+    })
+    return encode(p, columns, rows)
+  }
+  const run = look.isLoading ? t - LOAD_S : t
+  DRAW[look.scene]({ p, t: run * speed, now: now * speed, look, S, k, r, palette })
+  if (doodle) drawDoodle(p, doodle, run, now, S, k, look.seed)
   return encode(p, columns, rows)
+}
+
+// The ZX Spectrum's colours, bright and not.
+const ZX = { blue: 0x0000d7, red: 0xd70000, cyan: 0x00d7d7, yellow: 0xd7d700, white: 0xd7d7d7, ink: 0xcdcdcd }
+
+/**
+ * A screen loading from tape, as a ZX Spectrum's did: the border striped red and cyan for the
+ * pilot tone and flickering blue and yellow for data, "Program:" printed when the header
+ * arrives, then the picture drawn in white, a third of the screen at a time in the Spectrum's
+ * interleaved row order (the first line of every character row, then the second, ...), and its
+ * colours last, a character row at a time.
+ */
+function drawLoading(p: Pixels, t: number, k: number, paint: (inner: Pixels) => void) {
+  // The border, cell-aligned so its stripes stay crisp in braille.
+  const bx = 2 * Math.max(2, Math.round((p.w * 0.05) / 2))
+  const by = 4 * Math.max(1, Math.round((p.h * 0.1) / 4))
+  const inner: Pixels = { w: Math.max(4, p.w - 2 * bx), h: Math.max(4, p.h - 2 * by), px: new Uint32Array(Math.max(4, p.w - 2 * bx) * Math.max(4, p.h - 2 * by)) }
+  paint(inner)
+
+  const PILOT = 1.6
+  const HEADER = 2.0
+  const PILOT2 = 2.8
+  const BITMAP = 5.8
+  const ATTRS = 6.7
+  const isPilot = t < PILOT || (t >= HEADER && t < PILOT2)
+  const isPlain = t >= ATTRS
+  const band = 4
+  for (let y = 0; y < p.h; y++) {
+    const cellRow = Math.floor(y / band)
+    let colour: number
+    if (isPlain) colour = 0
+    else if (isPilot) colour = Math.floor((y + t * 60) / (band * 2)) % 2 === 0 ? ZX.red : ZX.cyan
+    else colour = hash(cellRow * 13.7 + Math.floor(t * 25)) > 0.5 ? ZX.blue : ZX.yellow
+    if (!colour) continue
+    for (let x = 0; x < p.w; x++) {
+      if (x >= bx && x < bx + inner.w && y >= by && y < by + inner.h) continue
+      put(p, x, y, colour)
+    }
+  }
+
+  // How much of the picture has arrived, in the Spectrum's order.
+  const bits = t < PILOT2 ? 0 : Math.min(1, (t - PILOT2) / (BITMAP - PILOT2))
+  const attrs = t < BITMAP ? 0 : Math.min(1, (t - BITMAP) / (ATTRS - BITMAP))
+  const third = inner.h / 3
+  const rowsPerThird = Math.ceil(third)
+  const charRows = Math.ceil(rowsPerThird / 8)
+  const order = (y: number) => {
+    const part = Math.min(2, Math.floor(y / third))
+    const within = y - Math.floor(part * third)
+    return part * rowsPerThird + (within % 8) * charRows + Math.floor(within / 8)
+  }
+  const shown = bits * 3 * rowsPerThird
+  for (let y = 0; y < inner.h; y++) {
+    if (order(y) >= shown) continue
+    const isColoured = Math.floor(y / 8) < attrs * Math.ceil(inner.h / 8)
+    for (let x = 0; x < inner.w; x++) {
+      const dot = inner.px[y * inner.w + x] ?? 0
+      if (dot) put(p, bx + x, by + y, isColoured ? dot : ZX.ink)
+    }
+  }
+  // The header's one line, until the picture loads over it.
+  if (t >= HEADER && bits < 0.12) tiny(p, 'PROGRAM: GUIDE', bx + 2, by + 2, Math.max(1, Math.min(k, 2)), () => ZX.white)
 }
 
 /** The model's sprite, moving its own way over the scene, with its caption beside the first. */
@@ -274,7 +351,7 @@ const DRAW: Record<Scene, (c: Ctx) => void> = {
     const isSchool = look.flavour === 'glob'
     const size = isSchool ? S : S + (p.h >= 40 ? 1 : 0)
     const speed = (10 + r(3) * 8) * S
-    const span = p.w + 30 * size + look.label.length * 4 * k
+    const span = p.w + 30 * size + look.label.length * advance(k)
     const amp = (p.h - 6 * size) / 3
     const freq = 1.8 + r(4) * 1.6
     const mid = p.h / 2 - (5 * size) / 2
@@ -294,7 +371,7 @@ const DRAW: Record<Scene, (c: Ctx) => void> = {
     // Behind the lead fish, the pattern it is looking for, letter by letter.
     const text = clip(look.label, 24)
     const palette = c.palette(r(7))
-    const gap = (4.5 * k) / speed
+    const gap = (advance(k) * 1.15) / speed
     for (let i = 0; i < text.length; i++) {
       const at = path(t - (i + 1.6) * gap)
       const ch = isRight ? text[text.length - 1 - i]! : text[i]!
@@ -348,7 +425,7 @@ const DRAW: Record<Scene, (c: Ctx) => void> = {
       disc(p, Math.round(cx + Math.cos(ma) * R * 1.7), Math.round(cy + Math.sin(ma) * R * 0.5), Math.max(1, Math.round(R / 6)), GREY)
     }
     if (look.label) {
-      if (hasRoomBeside) tiny(p, look.label, Math.round(cx + R * 2 + 4), cy - Math.floor((5 * k) / 2), k, () => WHITE)
+      if (hasRoomBeside) tiny(p, look.label, Math.round(cx + R + 6), cy - Math.floor((5 * k) / 2), k, () => WHITE)
       else tiny(p, look.label, null, p.h - 6 * k, k, () => WHITE)
     }
   },
@@ -423,28 +500,42 @@ const DRAW: Record<Scene, (c: Ctx) => void> = {
   },
 
   hyperspace(c) {
-    const { p, t, now, r, look } = c
-    const cx = p.w / 2
-    const cy = p.h / 2
-    const reach = Math.hypot(cx, cy)
-    const isBack = r(1) > 0.75
-    const count = Math.round(Math.min(160, Math.max(46, (p.w * p.h) / 60)))
+    // A small ship at full tilt: stars stream past as short horizontal streaks (a radial burst
+    // reads as a tangle of lines in a tall pane), and the destination grows on the right.
+    const { p, t, now, r, look, S, k } = c
+    const count = Math.round(Math.min(140, Math.max(30, (p.w * p.h) / 90)))
+    const tint = look.tint
     for (let n = 0; n < count; n++) {
-      const angle = hash(n * 3.3 + r(2)) * Math.PI * 2
-      let life = (now * (0.35 + hash(n * 1.9) * 0.5) + hash(n * 7.7)) % 1
-      if (isBack) life = 1 - life
-      const d = life * life * reach
-      const colour = life > 0.6 ? WHITE : life > 0.3 ? look.tint : STAR
-      for (let s = Math.max(0, d * 0.65); s <= d; s += 0.8) put(p, Math.round(cx + Math.cos(angle) * s), Math.round(cy + Math.sin(angle) * s), colour)
+      const y = Math.floor(hash(n * 3.3 + r(2)) * p.h)
+      const speed = (40 + hash(n * 1.9) * 80) * (0.6 + S * 0.4)
+      const x = p.w - ((now * speed + hash(n * 7.7) * p.w * 2) % (p.w * 1.4))
+      const length = Math.round(2 + (speed / 120) * 6 * S)
+      const colour = speed > 90 ? WHITE : n % 3 === 0 ? tint : STAR
+      for (let i = 0; i < length; i++) put(p, Math.round(x + i), y, colour)
     }
-    // The destination, looming larger as it approaches.
-    if (look.label) {
-      const text = clip(look.label, 20)
-      const most = Math.max(1, Math.min(Math.floor((p.w - 4) / (text.length * 4)), Math.floor(p.h / 12)))
-      const size = Math.max(1, Math.min(most, 1 + Math.floor(ease(Math.min(1, t / 2.5)) * most)))
-      const y = Math.floor(cy - (5 * size) / 2)
-      clear(p, Math.floor(cx - textWidth(text, size) / 2) - 1, y - 1, Math.ceil(cx + textWidth(text, size) / 2) + 1, y + 5 * size)
-      tiny(p, text, null, y, size, () => look.tint)
+    // The destination: a planet swelling as it nears, its name across it.
+    const text = clip(look.label, 20)
+    const most = Math.max(4, Math.min(Math.floor(p.h * 0.42), Math.floor(p.w * 0.22)))
+    const R = Math.max(2, Math.round(ease(Math.min(1, t / 3)) * most))
+    const px = Math.round(p.w - most - 3)
+    const py = Math.round(p.h / 2)
+    clear(p, px - R - 1, py - R - 1, px + R + 1, py + R + 1)
+    disc(p, px, py, R, mix(tint, PANEL, 0.35))
+    for (let a = 0; a < Math.PI * 2; a += 0.6 / R) put(p, Math.round(px + Math.cos(a) * R), Math.round(py + Math.sin(a) * R), tint)
+    // The ship, bobbing, its exhaust flickering.
+    const sx = Math.round(p.w * 0.18)
+    const sy = Math.round(p.h / 2 - (SHIP.length * S) / 2 + Math.sin(now * 2.2) * S)
+    clear(p, sx - 4 * S, sy - 1, sx + SHIP[0]!.length * S + 1, sy + SHIP.length * S + 1)
+    sprite(p, SHIP, sx, sy, { W: WHITE, B: CYAN, G: GREY }, S)
+    for (let i = 0; i < 3 * S; i++) {
+      if (hash(i + Math.floor(now * 20)) > 0.35) put(p, sx - 1 - i, sy + Math.floor((SHIP.length * S) / 2) + (i % 2) - 1, i < S ? YELLOW : ORANGE)
+    }
+    if (text) {
+      const ty = R * 2 > 5 * k + 4 ? py - Math.floor((7 * k) / 3) : Math.max(1, py - R - 6 * k)
+      const tw = textWidth(text, k)
+      const tx = Math.max(1, Math.min(p.w - tw - 1, px - Math.floor(tw / 2)))
+      clear(p, tx - 1, ty - 1, tx + tw, ty + 5 * k)
+      tiny(p, text, tx, ty, k, () => WHITE)
     }
   },
 
@@ -555,14 +646,17 @@ const DRAW: Record<Scene, (c: Ctx) => void> = {
     stars(p, now, 0.3, r(9))
     const w = Math.max(16, Math.min(p.w - 10, Math.round(p.h * 1.6)))
     const x0 = Math.floor((p.w - w) / 2)
-    const line = 2
+    const line = 3
     for (let x = 2; x < p.w - 2; x++) put(p, x, line, GREY)
-    const h = p.h - line - 4 - S
+    // Cell-aligned: a stripe thinner than a braille cell (4 dots) melts into its neighbour.
+    const top = 4
+    const h = Math.floor((p.h - top - 4) / 4) * 4
     const palette = c.palette(r(1))
     const wind = r(2) > 0.5 ? 1 : -1
-    const stripe = 2 + Math.floor(r(3) * 3) * S
-    // What is printed on it, in towel space, so it waves with the cloth.
-    const text = clip(look.label, Math.floor((w - 4) / (4 * k)))
+    const stripe = 4 * Math.max(1, Math.round(h / 16))
+    // What is printed on it is cut out of the cloth: a cell has one colour, so letters in a
+    // second colour would vanish into the stripe; holes show.
+    const text = clip(look.label, Math.max(1, Math.floor((w - 4) / advance(k))))
     const mask = new Set<number>()
     if (text) {
       const tw = textWidth(text, k)
@@ -572,14 +666,16 @@ const DRAW: Record<Scene, (c: Ctx) => void> = {
     }
     for (let x = 0; x < w; x++) {
       const along = wind > 0 ? x / w : 1 - x / w
-      const sway = along * 1.8 * S
+      const sway = along * 1.5 * S
+      const dy = Math.round(Math.sin(t * 3.2 - wind * x * 0.3) * sway)
       for (let y = 0; y < h; y++) {
-        const dy = Math.round(Math.sin(t * 3.2 - wind * x * 0.35) * sway * (y / h + 0.3))
-        const colour = mask.has(y * w + x) ? WHITE : palette[Math.floor(y / stripe) % palette.length]!
-        put(p, x0 + x, line + 1 + y + dy, colour)
+        if (mask.has(y * w + x)) continue
+        put(p, x0 + x, top + y + dy, palette[Math.floor(y / stripe) % palette.length]!)
       }
-      if (x % 2 === 0) put(p, x0 + x, line + 1 + h + Math.round(Math.sin(t * 3.2 - wind * x * 0.35) * sway * 1.3) + 1, WHITE)
+      if (x % 2 === 0) put(p, x0 + x, top + h + dy + 1, WHITE)
     }
+    // Two pegs.
+    for (const px of [x0 + 2, x0 + w - 3]) for (let y = line - 1; y <= top + 1; y++) put(p, px, y, BROWN)
   },
 
   petunias(c) {
@@ -670,6 +766,8 @@ const DRAW: Record<Scene, (c: Ctx) => void> = {
       put(p, x, sea + Math.round(Math.sin(t * 3 + x * 0.25) * S), CYAN)
       for (let y = sea + 2; y < p.h; y += 2) if (hash(x + y * 7 + Math.floor(t * 4)) > 0.75) put(p, x, y, BLUE)
     }
+    // The caption sits above the highest leap, never under a dolphin.
+    const sky = look.label ? 7 * k + 2 : 1
     const count = 2 + Math.floor(r(1) * 4)
     const isRight = r(2) > 0.3
     for (let i = 0; i < count; i++) {
@@ -677,10 +775,10 @@ const DRAW: Record<Scene, (c: Ctx) => void> = {
       const along = (t * (16 + i * 3) * S + (i * span) / count) % span
       const x = isRight ? along - 12 * S : p.w - along
       const leap = Math.max(0, Math.sin(t * 2.4 + i * 2.1 + r(3) * 3))
-      const y = Math.round(sea - 3 * S - leap * (sea - 6 * S))
+      const y = Math.round(sea - 3 * S - leap * Math.max(0, sea - 3 * S - sky - DOLPHIN.length * S))
       sprite(p, DOLPHIN, Math.round(x), y, { D: GREY, B: BELLY }, S, !isRight)
     }
-    if (look.label && t > 0.8) tiny(p, look.label, null, 2, k, () => WHITE)
+    if (look.label && t > 0.8) tiny(p, look.label, null, 1, k, () => WHITE)
   },
 }
 
@@ -697,6 +795,7 @@ const WHALE = [
 ]
 const POT = ['..p.r.p..', '.prp.prp.', '..g.g.g..', 'OOOOOOOOO', '.OOOOOOO.', '..OOOOO..']
 const DOLPHIN = ['.....D....', '..DDDDDD..', '.DDDDDDDDD', 'D...BBB...']
+const SHIP = ['....WWWW......', '..WWWWWWWWW...', 'GWWWWWWWWWBBW.', 'GWWWWWWWWWWWWW', '..WWWWWWWWWW..', '....WWWW......']
 const TEACUP = ['.#..#..#...', '...........', '########...', '#######.##.', '#######..#.', '########...', '.######....', '##########.']
 const HEART = ['.##...##.', '####.####', '#########', '.#######.', '..#####..', '...###...', '....#....']
 
@@ -716,40 +815,142 @@ const FONT: Record<string, string[]> = {
   '?': ['.###.', '#...#', '....#', '...#.', '..#..', '.....', '..#..'],
 }
 
-// The small lettering: 3 x 5, capitals, digits and a little punctuation.
-const TINY: Record<string, string> = {
-  A: '.#.#.####.##.#', B: '##.#.###.#.###.', C: '.###..#..#...##', D: '##.#.##.##.###.', E: '####..##.#..###',
-  F: '####..##.#..#..', G: '.###..#.##.#.##', H: '#.##.####.##.#', I: '###.#..#..#.###', J: '..#..#..##.#.#.',
-  K: '#.##.###.#.##.#', L: '#..#..#..#..###', M: '#.#####.##.##.#', N: '##.#.##.##.##.#', O: '.#.#.##.##.#.#.',
-  P: '##.#.###.#..#..', Q: '.#.#.##.###..##', R: '##.#.###.#.##.#', S: '.###...#...###.', T: '###.#..#..#..#.',
-  U: '#.##.##.##.####', V: '#.##.##.##.#.#.', W: '#.##.#######.#', X: '#.##.#.#.#.##.#', Y: '#.##.#.#..#..#.',
-  Z: '###..#.#.#..###', '0': '####.##.##.####', '1': '.#.##..#..#.###', '2': '##...#.#.#..###', '3': '##...#.#...###.',
-  '4': '#.##.####..#..#', '5': '####..##...###.', '6': '.###..####.####', '7': '###..#.#..#..#.', '8': '####.#####.####',
-  '9': '####.####..###.', '.': '.............#.', ',': '..........#.#..', '-': '......###......', _: '............###',
-  '/': '..#..#.#.#..#..', ':': '....#.....#....', '?': '##...#.#.....#.', '!': '.#..#..#.....#.', '*': '...#.#.#.#.#...',
-  '=': '...###...###...', '+': '....#.###.#....', '(': '.#.#..#..#...#.', ')': '.#...#..#..#.#.', '#': '#.####.####.#.#',
-  "'": '.#..#..........', '"': '#.##.#.........', '>': '#...#...#.#.#..', '<': '..#.#.#...#...#', '[': '##.#..#..#..##.',
-  ']': '.##..#..#..#.##', '@': '.#.#.####..###', '~': '...##.#.##.....', '&': '.#.#.#.#.#.#.##', $: '.###.#.#.#.###.',
-  '%': '#.#..#.#.#..#.#', '|': '.#..#..#..#..#.', '^': '.#.#.#.........',
+// The lettering. Two faces: 3 x 5 for a short screen, and 5 x 7 wherever there is room for
+// it. Capitals, digits and some punctuation; lower case is drawn as capitals, and anything
+// else as a question mark. Each glyph is its rows, top to bottom; '#' is a dot.
+
+const SMALL: Record<string, string[]> = {
+  A: ['.#.', '#.#', '###', '#.#', '#.#'], B: ['##.', '#.#', '##.', '#.#', '##.'], C: ['.##', '#..', '#..', '#..', '.##'],
+  D: ['##.', '#.#', '#.#', '#.#', '##.'], E: ['###', '#..', '##.', '#..', '###'], F: ['###', '#..', '##.', '#..', '#..'],
+  G: ['.##', '#..', '#.#', '#.#', '.##'], H: ['#.#', '#.#', '###', '#.#', '#.#'], I: ['###', '.#.', '.#.', '.#.', '###'],
+  J: ['..#', '..#', '..#', '#.#', '.#.'], K: ['#.#', '#.#', '##.', '#.#', '#.#'], L: ['#..', '#..', '#..', '#..', '###'],
+  M: ['#.#', '###', '###', '#.#', '#.#'], N: ['##.', '#.#', '#.#', '#.#', '#.#'], O: ['###', '#.#', '#.#', '#.#', '###'],
+  P: ['##.', '#.#', '##.', '#..', '#..'], Q: ['###', '#.#', '#.#', '###', '..#'], R: ['##.', '#.#', '##.', '#.#', '#.#'],
+  S: ['.##', '#..', '.#.', '..#', '##.'], T: ['###', '.#.', '.#.', '.#.', '.#.'], U: ['#.#', '#.#', '#.#', '#.#', '###'],
+  V: ['#.#', '#.#', '#.#', '#.#', '.#.'], W: ['#.#', '#.#', '###', '###', '#.#'], X: ['#.#', '#.#', '.#.', '#.#', '#.#'],
+  Y: ['#.#', '#.#', '.#.', '.#.', '.#.'], Z: ['###', '..#', '.#.', '#..', '###'],
+  '0': ['.#.', '#.#', '#.#', '#.#', '.#.'], '1': ['.#.', '##.', '.#.', '.#.', '###'], '2': ['##.', '..#', '.#.', '#..', '###'],
+  '3': ['##.', '..#', '.#.', '..#', '##.'], '4': ['#.#', '#.#', '###', '..#', '..#'], '5': ['###', '#..', '##.', '..#', '##.'],
+  '6': ['.##', '#..', '###', '#.#', '###'], '7': ['###', '..#', '.#.', '.#.', '.#.'], '8': ['###', '#.#', '###', '#.#', '###'],
+  '9': ['###', '#.#', '###', '..#', '##.'],
+  ' ': ['...', '...', '...', '...', '...'], '.': ['...', '...', '...', '...', '.#.'], ',': ['...', '...', '...', '.#.', '#..'],
+  '-': ['...', '...', '###', '...', '...'], _: ['...', '...', '...', '...', '###'], '/': ['..#', '..#', '.#.', '#..', '#..'],
+  ':': ['...', '.#.', '...', '.#.', '...'], ';': ['...', '.#.', '...', '.#.', '#..'], '?': ['##.', '..#', '.#.', '...', '.#.'],
+  '!': ['.#.', '.#.', '.#.', '...', '.#.'], "'": ['.#.', '.#.', '...', '...', '...'], '"': ['#.#', '#.#', '...', '...', '...'],
+  '(': ['.#.', '#..', '#..', '#..', '.#.'], ')': ['.#.', '..#', '..#', '..#', '.#.'], '*': ['...', '#.#', '.#.', '#.#', '...'],
+  '=': ['...', '###', '...', '###', '...'], '+': ['...', '.#.', '###', '.#.', '...'], '#': ['#.#', '###', '#.#', '###', '#.#'],
+  '>': ['#..', '.#.', '..#', '.#.', '#..'], '<': ['..#', '.#.', '#..', '.#.', '..#'], '[': ['##.', '#..', '#..', '#..', '##.'],
+  ']': ['.##', '..#', '..#', '..#', '.##'], '@': ['###', '#.#', '#.#', '#..', '.##'], '&': ['.#.', '#.#', '.#.', '#.#', '.##'],
+  $: ['.##', '##.', '.#.', '.##', '##.'], '%': ['#.#', '..#', '.#.', '#..', '#.#'], '|': ['.#.', '.#.', '.#.', '.#.', '.#.'],
+  '^': ['.#.', '#.#', '...', '...', '...'], '~': ['...', '##.', '.##', '...', '...'],
 }
 
-/** The 3 x 5 rows of a small letter; padded where a definition above came out short. */
-function tinyRows(ch: string): string[] {
-  const raw = (TINY[ch.toUpperCase()] ?? (ch === ' ' ? '' : TINY['?']!)).padEnd(15, '.')
-  return [0, 1, 2, 3, 4].map(i => raw.slice(i * 3, i * 3 + 3))
+const LARGE: Record<string, string[]> = {
+  A: ['.###.', '#...#', '#...#', '#...#', '#####', '#...#', '#...#'],
+  B: ['####.', '#...#', '#...#', '####.', '#...#', '#...#', '####.'],
+  C: ['.###.', '#...#', '#....', '#....', '#....', '#...#', '.###.'],
+  D: ['###..', '#..#.', '#...#', '#...#', '#...#', '#..#.', '###..'],
+  E: ['#####', '#....', '#....', '####.', '#....', '#....', '#####'],
+  F: ['#####', '#....', '#....', '####.', '#....', '#....', '#....'],
+  G: ['.###.', '#...#', '#....', '#.###', '#...#', '#...#', '.####'],
+  H: ['#...#', '#...#', '#...#', '#####', '#...#', '#...#', '#...#'],
+  I: ['.###.', '..#..', '..#..', '..#..', '..#..', '..#..', '.###.'],
+  J: ['..###', '...#.', '...#.', '...#.', '...#.', '#..#.', '.##..'],
+  K: ['#...#', '#..#.', '#.#..', '##...', '#.#..', '#..#.', '#...#'],
+  L: ['#....', '#....', '#....', '#....', '#....', '#....', '#####'],
+  M: ['#...#', '##.##', '#.#.#', '#.#.#', '#...#', '#...#', '#...#'],
+  N: ['#...#', '#...#', '##..#', '#.#.#', '#..##', '#...#', '#...#'],
+  O: ['.###.', '#...#', '#...#', '#...#', '#...#', '#...#', '.###.'],
+  P: ['####.', '#...#', '#...#', '####.', '#....', '#....', '#....'],
+  Q: ['.###.', '#...#', '#...#', '#...#', '#.#.#', '#..#.', '.##.#'],
+  R: ['####.', '#...#', '#...#', '####.', '#.#..', '#..#.', '#...#'],
+  S: ['.####', '#....', '#....', '.###.', '....#', '....#', '####.'],
+  T: ['#####', '..#..', '..#..', '..#..', '..#..', '..#..', '..#..'],
+  U: ['#...#', '#...#', '#...#', '#...#', '#...#', '#...#', '.###.'],
+  V: ['#...#', '#...#', '#...#', '#...#', '#...#', '.#.#.', '..#..'],
+  W: ['#...#', '#...#', '#...#', '#.#.#', '#.#.#', '#.#.#', '.#.#.'],
+  X: ['#...#', '#...#', '.#.#.', '..#..', '.#.#.', '#...#', '#...#'],
+  Y: ['#...#', '#...#', '.#.#.', '..#..', '..#..', '..#..', '..#..'],
+  Z: ['#####', '....#', '...#.', '..#..', '.#...', '#....', '#####'],
+  '0': ['.###.', '#...#', '#..##', '#.#.#', '##..#', '#...#', '.###.'],
+  '1': ['..#..', '.##..', '..#..', '..#..', '..#..', '..#..', '.###.'],
+  '2': ['.###.', '#...#', '....#', '...#.', '..#..', '.#...', '#####'],
+  '3': ['#####', '...#.', '..#..', '...#.', '....#', '#...#', '.###.'],
+  '4': ['...#.', '..##.', '.#.#.', '#..#.', '#####', '...#.', '...#.'],
+  '5': ['#####', '#....', '####.', '....#', '....#', '#...#', '.###.'],
+  '6': ['..##.', '.#...', '#....', '####.', '#...#', '#...#', '.###.'],
+  '7': ['#####', '....#', '...#.', '..#..', '.#...', '.#...', '.#...'],
+  '8': ['.###.', '#...#', '#...#', '.###.', '#...#', '#...#', '.###.'],
+  '9': ['.###.', '#...#', '#...#', '.####', '....#', '...#.', '.##..'],
+  ' ': ['.....', '.....', '.....', '.....', '.....', '.....', '.....'],
+  '.': ['.....', '.....', '.....', '.....', '.....', '.##..', '.##..'],
+  ',': ['.....', '.....', '.....', '.....', '.##..', '..#..', '.#...'],
+  '-': ['.....', '.....', '.....', '#####', '.....', '.....', '.....'],
+  _: ['.....', '.....', '.....', '.....', '.....', '.....', '#####'],
+  '/': ['.....', '....#', '...#.', '..#..', '.#...', '#....', '.....'],
+  ':': ['.....', '.##..', '.##..', '.....', '.##..', '.##..', '.....'],
+  ';': ['.....', '.##..', '.##..', '.....', '.##..', '..#..', '.#...'],
+  '?': ['.###.', '#...#', '....#', '...#.', '..#..', '.....', '..#..'],
+  '!': ['..#..', '..#..', '..#..', '..#..', '..#..', '.....', '..#..'],
+  "'": ['..#..', '..#..', '.#...', '.....', '.....', '.....', '.....'],
+  '"': ['.#.#.', '.#.#.', '.....', '.....', '.....', '.....', '.....'],
+  '(': ['...#.', '..#..', '.#...', '.#...', '.#...', '..#..', '...#.'],
+  ')': ['.#...', '..#..', '...#.', '...#.', '...#.', '..#..', '.#...'],
+  '*': ['.....', '..#..', '#.#.#', '.###.', '#.#.#', '..#..', '.....'],
+  '=': ['.....', '.....', '#####', '.....', '#####', '.....', '.....'],
+  '+': ['.....', '..#..', '..#..', '#####', '..#..', '..#..', '.....'],
+  '#': ['.#.#.', '.#.#.', '#####', '.#.#.', '#####', '.#.#.', '.#.#.'],
+  '>': ['.#...', '..#..', '...#.', '....#', '...#.', '..#..', '.#...'],
+  '<': ['...#.', '..#..', '.#...', '#....', '.#...', '..#..', '...#.'],
+  '[': ['.###.', '.#...', '.#...', '.#...', '.#...', '.#...', '.###.'],
+  ']': ['.###.', '...#.', '...#.', '...#.', '...#.', '...#.', '.###.'],
+  '@': ['.###.', '#...#', '....#', '.##.#', '#.#.#', '#.#.#', '.###.'],
+  '&': ['.##..', '#..#.', '#.#..', '.#...', '#.#.#', '#..#.', '.##.#'],
+  $: ['..#..', '.####', '#.#..', '.###.', '..#.#', '####.', '..#..'],
+  '%': ['##...', '##..#', '...#.', '..#..', '.#...', '#..##', '...##'],
+  '|': ['..#..', '..#..', '..#..', '..#..', '..#..', '..#..', '..#..'],
+  '^': ['..#..', '.#.#.', '#...#', '.....', '.....', '.....', '.....'],
+  '~': ['.....', '.....', '.#...', '#.#.#', '...#.', '.....', '.....'],
+}
+
+/** The face and scale for lettering of size `k`: 5 x 7 once the 3 x 5 would be 7 dots tall. */
+function face(k: number): { glyphs: Record<string, string[]>; w: number; h: number; scale: number } {
+  return 5 * k >= 7 ? { glyphs: LARGE, w: 5, h: 7, scale: Math.max(1, Math.floor((5 * k) / 7)) } : { glyphs: SMALL, w: 3, h: 5, scale: 1 }
+}
+
+/** A glyph's rows in the face for size `k`. */
+export function glyphRows(ch: string, k: number): string[] {
+  const f = face(k)
+  return f.glyphs[ch.toUpperCase()] ?? f.glyphs['?']!
+}
+
+/** Every glyph of both faces, for the test that checks their shapes. */
+export function allGlyphs(): { face: 'small' | 'large'; ch: string; rows: string[] }[] {
+  return [
+    ...Object.entries(SMALL).map(([ch, rows]) => ({ face: 'small' as const, ch, rows })),
+    ...Object.entries(LARGE).map(([ch, rows]) => ({ face: 'large' as const, ch, rows })),
+  ]
+}
+
+/** How far one letter moves the next along, in dots. */
+function advance(k: number): number {
+  const f = face(k)
+  return (f.w + 1) * f.scale
 }
 
 function textWidth(text: string, k: number): number {
-  return text.length > 0 ? text.length * 4 * k - k : 0
+  const f = face(k)
+  return text.length > 0 ? text.length * (f.w + 1) * f.scale - f.scale : 0
 }
 
 function eachTinyDot(text: string, k: number, fn: (x: number, y: number) => void) {
+  const f = face(k)
   for (let i = 0; i < text.length; i++) {
-    const rows = tinyRows(text[i]!)
-    for (let gy = 0; gy < 5; gy++) {
-      for (let gx = 0; gx < 3; gx++) {
-        if (rows[gy]![gx] !== '#') continue
-        for (let sy = 0; sy < k; sy++) for (let sx = 0; sx < k; sx++) fn(i * 4 * k + gx * k + sx, gy * k + sy)
+    const rows = glyphRows(text[i]!, k)
+    for (let gy = 0; gy < f.h; gy++) {
+      for (let gx = 0; gx < f.w; gx++) {
+        if (rows[gy]?.[gx] !== '#') continue
+        for (let sy = 0; sy < f.scale; sy++) for (let sx = 0; sx < f.scale; sx++) fn(i * (f.w + 1) * f.scale + gx * f.scale + sx, gy * f.scale + sy)
       }
     }
   }
@@ -760,12 +961,12 @@ function tiny(p: Pixels, text: string, x: number | null, y: number, size: number
   // Smaller before shorter: a long label steps down a size before it is cut (a marquee never is).
   let k = size
   while (!bounds && k > 1 && textWidth(clip(text, 999), k) > p.w - 2) k -= 1
-  const fit = bounds ? clip(text, 999) : clip(text, Math.max(1, Math.floor((p.w - 2) / (4 * k))))
+  const fit = bounds ? clip(text, 999) : clip(text, Math.max(1, Math.floor((p.w - 2) / advance(k))))
   const left = x ?? Math.floor((p.w - textWidth(fit, k)) / 2)
   eachTinyDot(fit, k, (dx, dy) => {
     const px = left + dx
     if (bounds && (px < bounds.x0 || px > bounds.x1)) return
-    put(p, px, y + dy, colour(Math.floor(dx / (4 * k))))
+    put(p, px, y + dy, colour(Math.floor(dx / advance(k))))
   })
 }
 

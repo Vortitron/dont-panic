@@ -302,6 +302,17 @@ async function commit($: EngineInterface, action: Action, quip?: string, extra?:
 }
 
 /** The scene for `action`, with this time's variations and what makes it relevant. */
+/**
+ * Whether this scene loads from tape first, Spectrum-style: always for the session's first,
+ * often as a prompt starts (there is usually a think to cover it), and now and then otherwise.
+ */
+function loads(action: Action): boolean {
+  if (MOMENTS.has(action.category)) return false
+  if (seq <= 1) return true
+  if (action.category === 'thinking') return Math.random() < 1 / 3
+  return Math.random() < 1 / 10
+}
+
 function lookFor(action: Action, scene?: Scene): Look {
   const chosen = scene ?? (action.category === 'mcp' && action.flavour === 'home' ? 'house' : SCENES[action.category])
   const label = action.label ?? ''
@@ -314,6 +325,7 @@ function lookFor(action: Action, scene?: Scene): Look {
     flavour: action.flavour,
     amount: action.amount ?? 0.4,
     doodle: variants[chosen],
+    isLoading: loads(action),
   }
 }
 

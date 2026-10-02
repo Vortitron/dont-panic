@@ -2,5 +2,5 @@ node_modules/
 .DS_Store
 
 # Written by Claude Code when it loads the plugin from this checkout
-.claude-plugin/types/
+.claude-plugin/types
 tsconfig.json
