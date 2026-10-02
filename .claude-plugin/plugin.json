@@ -1,6 +1,6 @@
 {
   "name": "dont-panic",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "A Guide-style pane for Claude Code: animated scenes and live, irreverent Guide entries on whatever the agent is doing, with doodles that evolve as you work.",
   "author": {
     "name": "Vortitron",

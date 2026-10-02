@@ -333,25 +333,70 @@ export type LiveEntry = { heading: string | null; entry: string; doodle: (Omit<D
 
 /** Reads the model's reply. Prose instead of JSON still makes an entry; a bad doodle is dropped. */
 export function parseLive(text: string): LiveEntry | null {
-  const start = text.indexOf('{')
-  const end = text.lastIndexOf('}')
-  let data: Record<string, unknown> | null = null
-  if (start >= 0 && end > start) {
-    try {
-      const parsed: unknown = JSON.parse(text.slice(start, end + 1))
-      if (parsed && typeof parsed === 'object') data = parsed as Record<string, unknown>
-    } catch {
-      data = null
-    }
-  }
+  const data = firstObject(text)
   if (!data) {
+    // JSON the parser cannot read is never shown as it stands: take what fields it can, or
+    // keep the stock entry. Prose (no JSON at all) still makes an entry.
+    if (/[{}]|"entry"\s*:/.test(text)) {
+      const raw = field(text, 'entry')
+      const entry = raw ? tidy(raw) : null
+      return entry ? { heading: headingOf(field(text, 'heading')), entry, doodle: null } : null
+    }
     const entry = tidy(text)
     return entry ? { heading: null, entry, doodle: null } : null
   }
   const entry = typeof data.entry === 'string' ? tidy(data.entry) : null
   if (!entry) return null
-  const heading = typeof data.heading === 'string' && data.heading.trim() ? cut(data.heading.trim().toUpperCase(), 60) : null
-  return { heading, entry, doodle: readDoodle(data.doodle) }
+  return { heading: headingOf(typeof data.heading === 'string' ? data.heading : null), entry, doodle: readDoodle(data.doodle) }
+}
+
+function headingOf(value: string | null): string | null {
+  return value && value.trim() ? cut(value.trim().toUpperCase(), 60) : null
+}
+
+/**
+ * The first complete JSON object in `text`, matched brace by brace (strings respected), so
+ * code fences, a preamble, or a stray brace after it (models add one now and then) do no harm.
+ */
+function firstObject(text: string): Record<string, unknown> | null {
+  for (let start = text.indexOf('{'); start >= 0; start = text.indexOf('{', start + 1)) {
+    let depth = 0
+    let isInString = false
+    for (let i = start; i < text.length; i++) {
+      const ch = text[i]
+      if (isInString) {
+        if (ch === '\\') i += 1
+        else if (ch === '"') isInString = false
+        continue
+      }
+      if (ch === '"') isInString = true
+      else if (ch === '{') depth += 1
+      else if (ch === '}') {
+        depth -= 1
+        if (depth === 0) {
+          try {
+            const parsed: unknown = JSON.parse(text.slice(start, i + 1))
+            if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) return parsed as Record<string, unknown>
+          } catch {
+            // Not this one; try from the next brace.
+          }
+          break
+        }
+      }
+    }
+  }
+  return null
+}
+
+/** One string field of broken JSON, unescaped, or null. */
+function field(text: string, name: string): string | null {
+  const match = new RegExp(`"${name}"\\s*:\\s*"((?:\\\\.|[^"\\\\])*)"`).exec(text)
+  if (!match) return null
+  try {
+    return (JSON.parse(`"${match[1]}"`) as string).trim() || null
+  } catch {
+    return null
+  }
 }
 
 function colour(value: unknown): number | null {

@@ -206,3 +206,22 @@ test('a doodle the screen cannot draw is dropped, and prose still makes an entry
   expect(odd?.doodle?.motion).toBe('drift')
   expect(odd?.doodle?.count).toBe(4)
 })
+
+test('a reply with a stray closing brace, fences or a cut-off end never shows as raw JSON', () => {
+  // As it arrived: one brace too many at the end.
+  const stray =
+    '{"heading":"PAUSES, LONG, IN THE MIDDLE OF A RESOLVER","entry":"Twenty seconds without a single tool call after ts-resolve.mjs is, the Guide notes, how most civilisations compose, rehearse and quietly discard a plan.","doodle":{"name":"Navigator robot","fresh":false,"sprite":["..cc..","cccccc"],"palette":{"c":"#9ad1d4"},"motion":"hover","count":1,"caption":"an idea, possibly"}}}'
+  const read = parseLive(stray)
+  expect(read?.heading).toBe('PAUSES, LONG, IN THE MIDDLE OF A RESOLVER')
+  expect(read?.entry.startsWith('Twenty seconds')).toBe(true)
+  expect(read?.doodle?.name).toBe('Navigator robot')
+
+  const fenced = parseLive('```json\n{"heading": "GREP", "entry": "A search utility of some renown."}\n```')
+  expect(fenced?.entry).toBe('A search utility of some renown.')
+
+  // Cut off mid-doodle: the heading and entry are still had, and no braces reach the screen.
+  const cut = parseLive('{"heading": "TOWELS", "entry": "Towels are \\"useful\\", on the whole.", "doodle": {"name": "a towel", "sprite": ["tt')
+  expect(cut?.entry).toBe('Towels are "useful", on the whole.')
+  expect(cut?.heading).toBe('TOWELS')
+  expect(parseLive('{"doodle": {"name": "no entry at all"')).toBe(null)
+})
