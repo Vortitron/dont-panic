@@ -17,9 +17,12 @@ Just a bit of fun, from [Vome](https://vome.io).
 In Claude Code:
 
 ```
-/plugin marketplace add Vortitron/home-assistant-mcp
-/plugin install dont-panic@vome
+/plugin install dont-panic --marketplace Vortitron/home-assistant-mcp
 ```
+
+On a Claude Code older than 2.1.275, add the marketplace first:
+`/plugin marketplace add Vortitron/home-assistant-mcp`, then
+`/plugin install dont-panic@vome`.
 
 Start a new session. The Guide opens by itself in a terminal 144 columns or
 wider; otherwise type `/guide`. Then get Claude to do something.
