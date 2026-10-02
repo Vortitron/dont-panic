@@ -148,13 +148,13 @@ export function screen(look: Look, t: number, now: number, columns: number, rows
     drawLoading(p, t, k, (inner: Pixels) => {
       // The picture being loaded is a still: the scene a moment in, its doodle in place.
       DRAW[look.scene]({ p: inner, t: 1.2, now: 3, look, S: Math.max(1, Math.floor(inner.h / 24)), k, r, palette })
-      if (doodle) drawDoodle(inner, doodle, 1.2, 3, Math.max(1, Math.floor(inner.h / 24)), k, look.seed)
+      if (doodle) drawDoodle(inner, doodle, 3, Math.max(1, Math.floor(inner.h / 24)), k)
     })
     return encode(p, columns, rows)
   }
   const run = look.isLoading ? t - LOAD_S : t
   DRAW[look.scene]({ p, t: run * speed, now: now * speed, look, S, k, r, palette })
-  if (doodle) drawDoodle(p, doodle, run, now, S, k, look.seed)
+  if (doodle) drawDoodle(p, doodle, now, S, k)
   return encode(p, columns, rows)
 }
 
@@ -253,24 +253,26 @@ export function tapeError(look: Look, cutAt: number, columns: number, rows: numb
     k,
     (inner: Pixels) => {
       DRAW[look.scene]({ p: inner, t: 1.2, now: 3, look, S: Math.max(1, Math.floor(inner.h / 24)), k, r, palette })
-      if (doodle) drawDoodle(inner, doodle, 1.2, 3, Math.max(1, Math.floor(inner.h / 24)), k, look.seed)
+      if (doodle) drawDoodle(inner, doodle, 3, Math.max(1, Math.floor(inner.h / 24)), k)
     },
     true,
   )
   return encode(p, columns, rows)
 }
 
-/** The model's sprite, moving its own way over the scene, with its caption beside the first. */
-function drawDoodle(p: Pixels, d: Doodle, t: number, now: number, S: number, k: number, seed: number) {
-  const s = Math.max(1, Math.min(S, Math.floor(p.h / (d.sprite.length * 2)) || 1))
+/** The model's sprite, bouncing round the scene, with its caption riding along with the first. */
+function drawDoodle(p: Pixels, d: Doodle, now: number, S: number, size: number) {
+  // A companion, not the main act: a size smaller than the scene, its caption in small type.
+  const s = Math.max(1, Math.min(S - 1, Math.floor(p.h / (d.sprite.length * 3))))
+  const k = Math.min(size, 2)
   const sw = (d.sprite[0]?.length ?? 1) * s
   const sh = d.sprite.length * s
   for (let i = 0; i < d.count; i++) {
-    const ph = i / d.count + hash(seed + i) * 0.3
-    const at = place(d.motion, p, sw, sh, t, now, ph, i)
-    const isFlipped = at.dir < 0
-    const isBlinkedOff = d.motion === 'pulse' && Math.sin(now * 4 + i) < -0.6
-    if (!isBlinkedOff) sprite(p, d.sprite, Math.round(at.x), Math.round(at.y), d.palette, s, isFlipped)
+    const at = bounce(p, sw, sh, now, i)
+    // Like the DVD logo, it changes colour each time it hits a wall.
+    const palette: Record<string, number> = {}
+    for (const [key, colour] of Object.entries(d.palette)) palette[key] = turn(colour, at.hits)
+    sprite(p, d.sprite, Math.round(at.x), Math.round(at.y), palette, s, at.dx < 0)
     if (i === 0 && d.caption) {
       const cy = at.y > 6 * k + 1 ? at.y - 6 * k : at.y + sh + k
       const width = textWidth(clip(d.caption, 24), k)
@@ -280,32 +282,41 @@ function drawDoodle(p: Pixels, d: Doodle, t: number, now: number, S: number, k: 
   }
 }
 
-function place(motion: Motion, p: Pixels, sw: number, sh: number, t: number, now: number, ph: number, i: number) {
+/**
+ * Where a doodle is, bouncing round the screen like the old DVD logo: straight lines at a
+ * steady pace, rebounding off each edge. It is worked out from the wall clock alone, so it
+ * carries on through a change of scene rather than jumping; `hits` counts the walls so far.
+ */
+function bounce(p: Pixels, sw: number, sh: number, now: number, i: number) {
   const roomX = Math.max(1, p.w - sw)
   const roomY = Math.max(1, p.h - sh)
-  const across = (speed: number) => (((t * speed + ph * (p.w + sw)) % (p.w + sw)) + p.w + sw) % (p.w + sw) - sw
-  switch (motion) {
-    case 'drift':
-      return { x: across(6), y: roomY * (0.2 + 0.6 * hash(i + 3.1)) + Math.sin(now + i) * 2, dir: 1 }
-    case 'bob':
-      return { x: roomX * (0.15 + 0.7 * ((ph + 0.5) % 1)), y: roomY * 0.5 + Math.sin(now * 2 + i) * Math.min(6, roomY / 3), dir: 1 }
-    case 'orbit': {
-      const a = now * 0.9 + ph * Math.PI * 2
-      return { x: roomX / 2 + Math.cos(a) * roomX * 0.4, y: roomY / 2 + Math.sin(a) * roomY * 0.4, dir: Math.sin(a) > 0 ? -1 : 1 }
-    }
-    case 'bounce': {
-      const bx = (now * 9 + ph * roomX * 2) % (roomX * 2)
-      const by = (now * 5 + ph * roomY * 2) % (roomY * 2)
-      return { x: bx < roomX ? bx : roomX * 2 - bx, y: by < roomY ? by : roomY * 2 - by, dir: bx < roomX ? 1 : -1 }
-    }
-    case 'swim':
-      return { x: across(10), y: roomY / 2 + Math.sin(t * 2 + ph * 6) * roomY * 0.35, dir: 1 }
-    case 'march':
-      return { x: across(5), y: roomY - Math.abs(Math.sin(t * 6 + i)) * 2, dir: 1 }
-    case 'pulse':
-      return { x: roomX * (0.5 + (i - 0.5) * 0.3), y: roomY * 0.5, dir: 1 }
+  // Speeds that do not divide evenly, so it wanders the whole screen (and now and then, a corner).
+  const vx = Math.max(6, p.w / 7)
+  const vy = Math.max(4, p.h / 6.3)
+  const ax = now * vx + i * roomX * 0.61
+  const ay = now * vy + i * roomY * 0.37
+  const fold = (a: number, room: number) => {
+    const span = 2 * room
+    const u = ((a % span) + span) % span
+    return u < room ? { at: u, dir: 1 } : { at: span - u, dir: -1 }
+  }
+  const x = fold(ax, roomX)
+  const y = fold(ay, roomY)
+  return { x: x.at, y: y.at, dx: x.dir, hits: Math.floor(ax / roomX) + Math.floor(ay / roomY) }
+}
+
+/** A colour turned a third of the way round the colour wheel per wall hit. */
+function turn(colour: number, hits: number): number {
+  const r = (colour >> 16) & 255
+  const g = (colour >> 8) & 255
+  const b = colour & 255
+  switch (((hits % 3) + 3) % 3) {
+    case 1:
+      return (b << 16) | (r << 8) | g
+    case 2:
+      return (g << 16) | (b << 8) | r
     default:
-      return { x: roomX * (0.82 - i * 0.22), y: 2 + Math.sin(now * 1.5 + i) * 2, dir: -1 }
+      return colour
   }
 }
 
@@ -662,8 +673,8 @@ const DRAW: Record<Scene, (c: Ctx) => void> = {
       let x: number
       let y: number
       if (u < 0.35) {
-        x = at.x
-        y = at.y
+        // Held: the shape is drawn whole below; the dots wait inside it.
+        continue
       } else if (u < 0.65) {
         const s = ease((u - 0.35) / 0.3)
         x = at.x + (cloud.x - at.x) * s
@@ -673,7 +684,13 @@ const DRAW: Record<Scene, (c: Ctx) => void> = {
         x = cloud.x + (next.x - cloud.x) * s
         y = cloud.y + (next.y - cloud.y) * s
       }
-      put(p, Math.round(x), Math.round(y), u < 0.35 ? from.colour : palette[(i + j) % palette.length]!)
+      put(p, Math.round(x), Math.round(y), palette[(i + j) % palette.length]!)
+    }
+    if (u < 0.35) {
+      // Improbably, solidly, a teacup (or a whale, or a heart): every block of it, not a sample.
+      const ox = Math.round(cx - (from.w * sa) / 2)
+      const oy = Math.round(cy - (from.h * sa) / 2)
+      for (const pt of from.points) for (let sy = 0; sy < sa; sy++) for (let sx = 0; sx < sa; sx++) put(p, ox + pt.x * sa + sx, oy + pt.y * sa + sy, from.colour)
     }
     if (labelRows) {
       const odds = u < 0.35 ? 'ODDS 1:1' : `ODDS 1:${Math.floor(hash(Math.floor(t * 10)) * 9e8 + 1e8)}`

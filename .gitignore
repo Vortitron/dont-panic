@@ -4,3 +4,4 @@ node_modules/
 # Written by Claude Code when it loads the plugin from this checkout
 .claude-plugin/types
 tsconfig.json
+__pycache__/

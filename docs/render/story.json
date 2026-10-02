@@ -1,0 +1,387 @@
+[
+  {
+    "scene": "panic",
+    "action": {
+      "category": "thinking",
+      "tool": "",
+      "detail": "",
+      "vars": {},
+      "label": "THINKING"
+    },
+    "heading": "DARK MODE, TOGGLING OF",
+    "entry": "Most species sleep in the dark and work in the light, then insist on a switch to reverse this. The settings page is about to gain one. The Guide notes that the Galaxy's most popular colour scheme is 'whichever one isn't on now'.",
+    "doodle": {
+      "name": "Nervous lightbulb on legs",
+      "sprite": [
+        "...yyyyyy...",
+        "..yywwyyyy..",
+        ".yywyyyyyyo.",
+        ".yykyyykyyo.",
+        ".yyyyyyyyyo.",
+        "..yyyyyyyo..",
+        "...oyyyyo...",
+        "...gggggg...",
+        "...hhhhhh...",
+        "...g....g..."
+      ],
+      "palette": {
+        "y": 16767050,
+        "w": 16775106,
+        "o": 15243804,
+        "k": 1710638,
+        "g": 10134961,
+        "h": 6055536
+      },
+      "motion": "bob",
+      "count": 1,
+      "caption": "Light mode, for now",
+      "scenePalette": [
+        725040,
+        1911388,
+        16767050
+      ],
+      "speed": 0.8,
+      "generation": 1
+    }
+  },
+  {
+    "scene": "book",
+    "action": {
+      "category": "read",
+      "tool": "Read",
+      "detail": "Read · Settings.tsx",
+      "vars": {
+        "file": "Settings.tsx",
+        "tool": "Read"
+      },
+      "label": "Settings.tsx"
+    },
+    "heading": "SETTINGS, PAGE OF",
+    "entry": "Every civilisation eventually builds a room full of switches and calls it Preferences. Settings.tsx is being read slowly, as one reads a menu in a language where 'fish' might mean 'sing'. The Guide recommends admiring the toggles before touching any.",
+    "doodle": {
+      "name": "Bookworm with reading spectacles",
+      "sprite": [
+        "....bbbb........",
+        "...bddddb.......",
+        "..bdwwdwdb......",
+        "..bdwkdwkb..yy..",
+        "..bdddddb..y..y.",
+        "...bddddbbbyyyy.",
+        "....gggggggggg..",
+        "...gggGgggGggg..",
+        "..gGgggggggggGg.",
+        "...gg.gg..gg.gg."
+      ],
+      "palette": {
+        "b": 3877402,
+        "d": 15251562,
+        "w": 16777215,
+        "k": 1118481,
+        "y": 16769162,
+        "g": 8376683,
+        "G": 5020227
+      },
+      "motion": "march",
+      "count": 1,
+      "caption": "Reading the small print",
+      "scenePalette": [
+        1774628,
+        8376683,
+        15251562
+      ],
+      "speed": 0.8,
+      "generation": 1
+    }
+  },
+  {
+    "scene": "babel",
+    "action": {
+      "category": "search",
+      "tool": "Grep",
+      "detail": "Grep · theme",
+      "vars": {
+        "pattern": "theme",
+        "tool": "Grep"
+      },
+      "label": "theme"
+    },
+    "heading": "GREP, THEME-SEEKING",
+    "entry": "Somewhere in the codebase the word 'theme' is hiding, and grep is asking every file in turn, without malice. The Guide notes that on Betelgeuse a theme is simply a mood with a deposit paid. Here the pattern is being chased through the bubbles.",
+    "doodle": {
+      "name": "Babel fish with a magnifying glass",
+      "sprite": [
+        "....yy........",
+        "...yoooy..cc..",
+        "..yooooooc..c.",
+        ".kooowooooc.c.",
+        "oooooooooogcc.",
+        ".oooooooooo.h.",
+        "..ooooooo..h..",
+        "...oo.oo....h.",
+        "....o..o......"
+      ],
+      "palette": {
+        "o": 16098851,
+        "y": 16767078,
+        "w": 16777215,
+        "k": 1710618,
+        "c": 8381439,
+        "g": 10146016,
+        "h": 9067051
+      },
+      "motion": "swim",
+      "count": 1,
+      "caption": "theme? theme?",
+      "scenePalette": [
+        728378,
+        1989258,
+        8381439
+      ],
+      "speed": 1,
+      "generation": 1
+    }
+  },
+  {
+    "scene": "magrathea",
+    "action": {
+      "category": "edit",
+      "tool": "Edit",
+      "detail": "Edit · Settings.tsx",
+      "vars": {
+        "file": "Settings.tsx",
+        "tool": "Edit"
+      },
+      "label": "Settings.tsx",
+      "amount": 0.7698857518507265
+    },
+    "heading": "DARK MODE, COMMISSIONING OF",
+    "entry": "On Magrathea, a planet is ordered, then fitted with fjords for artistic reasons. Settings.tsx is being edited likewise: one toggle, ordered to specification. The Guide notes that the Galaxy's most admired fjords were all, at first, a slip of the chisel.",
+    "doodle": {
+      "name": "Magrathean fjord chiseller",
+      "sprite": [
+        "...yyyyyy...",
+        "..yyyyyyyy..",
+        "...ssssss...",
+        "...sksskss..",
+        "...ssssss.w.",
+        "..bbbbbbbbc.",
+        ".sbbbbbbbbc.",
+        "..bbbbbbbbc.",
+        "..dd....dd.."
+      ],
+      "palette": {
+        "y": 16763955,
+        "s": 15775882,
+        "k": 2236962,
+        "b": 3832789,
+        "c": 13621468,
+        "d": 9132587,
+        "w": 16777215
+      },
+      "motion": "bob",
+      "count": 1,
+      "caption": "one fjord, as specified",
+      "scenePalette": [
+        728378,
+        3043230,
+        15253872
+      ],
+      "speed": 0.8,
+      "generation": 1
+    }
+  },
+  {
+    "scene": "deepthought",
+    "action": {
+      "category": "shell",
+      "tool": "Bash",
+      "detail": "Bash · npm test -- settings",
+      "vars": {
+        "cmd": "npm test --",
+        "tool": "Bash",
+        "sub": "test"
+      },
+      "flavour": "tests",
+      "label": "npm test --"
+    },
+    "heading": "TESTS, SELECTIVE RUNNING OF",
+    "entry": "The word 'settings' has been handed to npm test as a filter, so only the specs that mention it will be asked how they feel. The Guide notes that the Galaxy's greatest computer took seven and a half million years over one answer. This one hopes for under four seconds.",
+    "doodle": {
+      "name": "Nervous test tube with legs",
+      "sprite": [
+        ".gggggg.",
+        ".gllllg.",
+        ".gwbwbg.",
+        ".glmmlg.",
+        ".gllllg.",
+        ".gddddg.",
+        "..gddg..",
+        "..gggg..",
+        "..f..f..",
+        ".ff..ff."
+      ],
+      "palette": {
+        "g": 10476799,
+        "l": 6094730,
+        "d": 3126624,
+        "w": 16777215,
+        "b": 1052720,
+        "m": 1332013,
+        "f": 16755008
+      },
+      "motion": "bounce",
+      "count": 1,
+      "caption": "Please be green",
+      "scenePalette": [
+        662063,
+        3112913,
+        6094730
+      ],
+      "speed": 1,
+      "generation": 1
+    }
+  },
+  {
+    "scene": "petunias",
+    "action": {
+      "category": "fail",
+      "tool": "Bash",
+      "detail": "Bash · npm test -- settings",
+      "vars": {
+        "tool": "Bash",
+        "error": "Expected \"dark\", received \"light\""
+      },
+      "flavour": "tests",
+      "label": "Bash"
+    },
+    "heading": "ASSERTIONS, FAILED, DARK VERSUS LIGHT",
+    "entry": "The test expected \"dark\" and received \"light\", a disagreement the Guide has seen end whole dynasties. On the Sirian Cluster's night-side moons, light mode is considered a medical emergency. The theme toggle is now under mild suspicion.",
+    "doodle": {
+      "name": "Nervous petunia bowl in sunglasses",
+      "sprite": [
+        "....gg..gg....",
+        "...gggggggg...",
+        "..ppgggggpp...",
+        ".pppppppppppp.",
+        ".pwpppppppwpp.",
+        ".pppppppppppp.",
+        "..bbbbbbbbbb..",
+        "...bbbbbbbb...",
+        "....bbbbbb....",
+        "....b....b...."
+      ],
+      "palette": {
+        "g": 5025616,
+        "p": 14699176,
+        "w": 16771573,
+        "b": 7045078
+      },
+      "motion": "bob",
+      "count": 1,
+      "caption": "it said dark, surely",
+      "scenePalette": [
+        725040,
+        3811947,
+        14699176
+      ],
+      "speed": 1,
+      "generation": 1
+    }
+  },
+  {
+    "scene": "book",
+    "action": {
+      "category": "read",
+      "tool": "Read",
+      "detail": "Read · Settings.tsx",
+      "vars": {
+        "file": "Settings.tsx",
+        "tool": "Read"
+      },
+      "label": "Settings.tsx"
+    },
+    "heading": "RE-READING, ART OF",
+    "entry": "Settings.tsx is being read a second time, which the Guide holds to be the first honest reading. The Pelmerian Archivists believe every file lies once, politely, and only to those in a hurry. Somewhere in here, \"light\" is passing itself off as \"dark\".",
+    "doodle": {
+      "name": "Bookworm with a sweat drop and a moon badge",
+      "sprite": [
+        "....bbbb........",
+        "...bddddb.......",
+        "..bdwwdwdb......",
+        "..bdwkdwkb..yy..",
+        "..bdddddb..y..y.",
+        "...bddddbbbyyyy.",
+        "....gggggggggg..",
+        "...gggGgmmGggg..",
+        "..gGggggmggggGg.",
+        "...gg.gg..gg.gg."
+      ],
+      "palette": {
+        "b": 3877402,
+        "d": 15251562,
+        "w": 16777215,
+        "k": 1118481,
+        "y": 16769162,
+        "g": 8376683,
+        "G": 5020227,
+        "m": 12376063
+      },
+      "motion": "march",
+      "count": 1,
+      "caption": "Dark mode, allegedly",
+      "scenePalette": [
+        1778496,
+        3820154,
+        15260064
+      ],
+      "speed": 0.8,
+      "generation": 2
+    }
+  },
+  {
+    "scene": "answer",
+    "action": {
+      "category": "done",
+      "tool": "",
+      "detail": "Answered after 48 s",
+      "vars": {
+        "secs": "48 s"
+      },
+      "label": "IN 48S"
+    },
+    "heading": "DARK MODE, SWITCHING OF",
+    "entry": "A toggle has been added to Settings.tsx and persisted per user, a courtesy the Guide admires. On Gryllon-4 the night is switched on by law at dusk, and fined if it flickers. Here the test, having first said \"light\", now says yes.",
+    "doodle": {
+      "name": "Sleepy toggle switch on tiny feet",
+      "sprite": [
+        "..bbbbbbbbbb..",
+        ".baaaaaaccccb.",
+        "baeaaaaccccddb",
+        "baaaaaacckckdb",
+        "baaeaaaccccddb",
+        ".baaaaaaccddb.",
+        "..bbbbbbbbbb..",
+        "...ff......ff."
+      ],
+      "palette": {
+        "a": 2833039,
+        "b": 7308016,
+        "c": 16117696,
+        "d": 13221754,
+        "e": 16769126,
+        "f": 15263984,
+        "k": 1315883
+      },
+      "motion": "bob",
+      "count": 1,
+      "caption": "Dark mode: on",
+      "scenePalette": [
+        725040,
+        2833039,
+        16769126
+      ],
+      "speed": 0.8,
+      "generation": 1
+    }
+  }
+]

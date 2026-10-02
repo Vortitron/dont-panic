@@ -5,6 +5,8 @@ Hitchhiker’s Guide to the Galaxy*. It has nothing to do with your code. While
 the agent works, the Guide animates what it is doing and files an entry on it
 in the Guide's own voice: encyclopaedic, digressive, and mildly unimpressed.
 
+![The Guide in a session: a tape load, then reading, searching, editing, testing, a failure, a re-read (its bookworm doodle now in its second generation) and the answer, with the Guide's live entry on each.](docs/images/guide.gif)
+
 > **TESTS, RUNNING OF.** The Guide notes that guide.test.ts has been handed to
 > a machine of great dignity, which will consider it at length. Most
 > civilisations simply run npm test and hope. The more advanced ones hope
@@ -68,6 +70,8 @@ across sessions.
   | An interruption | Dolphins leaping away |
   | Thinking, idle | DON'T PANIC, in large friendly letters |
 
+  ![All twelve scenes: DON'T PANIC, the book, the Babel fish, Magrathea, Deep Thought, hyperspace, the house, the improbability cloud, the towel, the falling whale, 42 and the dolphins.](docs/images/scenes.png)
+
 - **A nod to the ZX Spectrum** now and then: a scene loads from tape, with the
   border striped red and cyan for the pilot tone, then flickering blue and
   yellow for data. "Program: GUIDE" appears, then the picture arrives in white
@@ -75,12 +79,15 @@ across sessions.
   last. The first scene of every session always loads this way. Cut a load
   short with a different scene and you get what stopping the tape always got
   you: "R Tape loading error, 0:1".
+
+  ![A scene loading from tape, cut short by an edit: R Tape loading error, then Magrathea.](docs/images/spectrum.gif)
 - **Entries**, each with a heading in the Guide's filing style and a short
   entry naming the actual file, command or pattern. A stock entry appears at
   once; the live one replaces it a second or two later. A long think with no
   tool calls gets a fresh scene and entry every 20 seconds.
 - **Doodles that evolve.** With each live entry the model draws a small pixel
-  character into the scene: a mainframe with blinking lamps, a Vogon clerk, a
+  character that bounces round the scene like the old DVD logo, changing
+  colour at each wall: a mainframe with blinking lamps, a Vogon clerk, a
   bookworm. Next time that scene comes up it gets its last doodle back and
   evolves it: the mainframe starts printing a verdict, the bookworm acquires a
   monocle. The pane says what is on screen and which generation it has reached.
@@ -114,6 +121,11 @@ across sessions.
   of Douglas Adams; this is an unofficial fan tribute.
 
 ## Developing
+
+The pictures in this README are drawn by the plugin's own `screen.ts`:
+`docs/render/story.ts` runs a short session through the Guide's real prompt
+(`claude -p`), `frames.ts` lays out each frame as the pane would, and
+`render.py` (Pillow and ffmpeg) draws them.
 
 `claude plugin validate .` checks the manifest and hooks;
 `claude plugin test .` runs `tests/`. To try a change, load the checkout with
